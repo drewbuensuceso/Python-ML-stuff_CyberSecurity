@@ -1,5 +1,5 @@
 from typing import List
-import main
+import logon_times as main
 import pandas as pd
 
 lines: List[str] = []

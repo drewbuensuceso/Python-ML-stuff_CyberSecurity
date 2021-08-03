@@ -7,6 +7,7 @@ from adtk.detector import GeneralizedESDTestAD
 import logging
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
+import sys
 
 
 LOG = logging.getLogger(__name__)
@@ -124,5 +125,6 @@ def main(input: fileinput.FileInput, window_size: pd.Timedelta) -> None:
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     with logging_redirect_tqdm():
-        main(fileinput.input(), pd.to_timedelta('1d'))
+        delta = sys.argv[1]
+        main(fileinput.input('-'), pd.to_timedelta(delta))
         LOG.info('done')
