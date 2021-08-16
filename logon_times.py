@@ -1,16 +1,14 @@
-import fileinput
+#!/usr/bin/env python3
+
 import json
-from typing import Any, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 import pandas as pd
 from adtk.data import validate_series
 from adtk.detector import GeneralizedESDTestAD
-import logging
-from tqdm import tqdm
-from tqdm.contrib.logging import logging_redirect_tqdm
-import sys
+from io import TextIOWrapper
+import structlog
+import argparse
 
-
-LOG = logging.getLogger(__name__)
 
 # Event represents an logon event for a user at a
 # particular timestamp.
@@ -88,21 +86,19 @@ class Window:
 
         return result
 
-    
-        
 
+def main(input: TextIOWrapper, window_size: pd.Timedelta) -> None:
 
-
-
-def main(input: fileinput.FileInput, window_size: pd.Timedelta) -> None:
+    log = structlog.get_logger(detector='logon_times')
 
     # Init sliding window of events to use as model.
     window = Window(window_size)
     count: int = 0
+    logged_saturation = False
 
     # For each input event we update the window, and then test the event against
     # the model.
-    for line in tqdm(input, desc='events', maxinterval=1):
+    for line in input:
         count = count + 1
         e = event(line)
         window.add(e)
@@ -111,20 +107,27 @@ def main(input: fileinput.FileInput, window_size: pd.Timedelta) -> None:
         if not window.saturated():
             continue
 
+        if not logged_saturation:
+            logged_saturation = True
+            log.info('model reached saturation', events=count)
+
         window.prune()
         results = window.check(e)
 
         for anomaly in results:
             hour, user = anomaly
-            LOG.info(f'anomaly: {user} {hour}')
+            ts = hour.to_pydatetime().isoformat()
+            log.info('anomalous logon for user', user=user, time=ts)
 
 
-
+def duration(value: str) -> pd.Timedelta:
+    return pd.to_timedelta(value)
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
-    with logging_redirect_tqdm():
-        delta = sys.argv[1]
-        main(fileinput.input('-'), pd.to_timedelta(delta))
-        LOG.info('done')
+    parser = argparse.ArgumentParser(description='Flag anomalous logon time for user')
+    parser.add_argument('--window', type=duration, default='30 days', help='Model sample size')
+    parser.add_argument('--input', type=open, help='File containing event stream')
+    args = parser.parse_args()
+
+    main(args.input, args.window)
