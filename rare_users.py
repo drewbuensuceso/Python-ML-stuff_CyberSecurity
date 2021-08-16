@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from io import TextIOWrapper
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 import argparse
 import json
 import pandas as pd
@@ -21,26 +21,21 @@ def event(input: Union[str, bytes]) -> Event:
 
 class Model:
     def __init__(self, size: pd.Timedelta):
-        self.events: List[Event] = []
+        self.seen: Dict[str, pd.Timestamp] = {}
         self.size: pd.Timedelta = size
-        self.latest: Optional[pd.Timestamp] = None
 
     def check(self, event: Event) -> bool:
 
         timestamp, user = event
-       
-        # Update time
-        if self.latest == None or timestamp > self.latest:
-            self.latest = timestamp
         
-        # Prune expired events
-        self.events = list(filter(lambda e: e[0] >= self.latest - self.size, self.events))
-        
-        # Check if this event has been seen within window
-        seen = any(map(lambda e: e[1] == user, self.events))
+        # Have we seen this user within the window?
+        seen = False
+        if user in self.seen:
+            if self.seen[user] >= timestamp - self.size:
+                seen = True
 
-        # Record that we have seen this event
-        self.events.append(event)
+        # Record when we saw this user
+        self.seen[user] = timestamp
 
         return not seen
 
