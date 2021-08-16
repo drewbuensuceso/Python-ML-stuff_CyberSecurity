@@ -1,44 +1,22 @@
 Various realtime anomaly detectors
 
+```sh
+pip install -r requirements.txt
+./logon_times.py --help
+./suspicious_processes.py --help
+./rare_users.py --help
+```
+
 ---
 
-# Suspicious processes
-
-Detects unrecognised (process, parent) pairs.
-
-```
-python suspicious_processes.py training.txt < input.txt
-```
-
-Takes 1 argument which is a training data file. Event stream via stdin. Logs
-each event which is anomalous.
-
-In this case an anomalous event is simply a (process, parent) pair which was
-not seen in the training data.
-
-Input and training data in this form:
+Process event data expected in this format:
 
 ```
 {"_index":"td-ml-hids-4688-2021","_type":"_doc","_id":"tSxrY3kBBGrFFIuyjq6T","_score":1,"_source":{"process":{},"event":{"module":"ml-hids","code":"4688","action":"A new process has been created."},"input":{},"key":"td_%{[user][target][name]}_2021-05-13T01:51:02.672Z","count":1,"day":"Thu","user":{"target":{}},"agent":{"name":"DEV-SURAJ","os_full":"Microsoft Windows 10 Enterprise"},"@timestamp":"2021-05-13T01:51:02.672Z","tenant":"td","data":{"win":{"eventdata":{"newProcessName":"C:\\\\Windows\\\\System32\\\\svchost.exe","parentProcessName":"C:\\\\Windows\\\\System32\\\\services.exe"},"system":{"computer":"DEV-SURAJ"}}},"hour":"01"}}
 {"_index":"td-ml-hids-4688-2021","_type":"_doc","_id":"tyxrY3kBBGrFFIuyjq6T","_score":1,"_source":{"process":{},"event":{"module":"ml-hids","code":"4688","action":"A new process has been created."},"input":{},"key":"td_%{[user][target][name]}_2021-05-13T01:51:02.673Z","count":1,"day":"Thu","user":{"target":{}},"agent":{"name":"DEV-SURAJ","os_full":"Microsoft Windows 10 Enterprise"},"@timestamp":"2021-05-13T01:51:02.673Z","tenant":"td","data":{"win":{"eventdata":{"newProcessName":"C:\\\\Windows\\\\System32\\\\wbem\\\\WmiApSrv.exe","parentProcessName":"C:\\\\Windows\\\\System32\\\\services.exe"},"system":{"computer":"DEV-SURAJ"}}},"hour":"01"}}
-...
 ```
 
-## Logon times
-
-Detects unusual logon behaviour. I.e., an unexpected number of logons for a user
-based on the day/hour.
-
-```
-python logon_times.py 30d <input.txt
-```
-
-Takes 1 argument which is a window size to base the model on. E.g., the model
-is based on the most recent 30d of events from the input stream.
-
-The event stream is expected on stdin.
-
-The input should be in the form:
+User logon event data expected in this format:
 
 ```
 "_index":"td-ml-hids-4624-2021","_type":"_doc","_id":"HIbjeXkBtnvU9Dr0IFrZ","_score":1,"_source":{"process":{"name":"C:\\\\Windows\\\\System32\\\\services.exe"},"event":{"module":"ml-hids","code":"4624","action":"An account was successfully logged on."},"input":{},"key":"rhipe_SYSTEM_2021-05-17T10:33:17.698Z","count":1,"day":"Mon","user":{"target":{"name":"SYSTEM"}},"agent":{"name":"DESKTOP-ATBQRO0","os_full":"Microsoft Windows 10 Enterprise"},"@timestamp":"2021-05-17T10:33:17.698Z","tenant":"rhipe","data":{"win":{"eventdata":{"logonType":"5"},"system":{"computer":"DESKTOP-ATBQRO0"}}},"hour":"10"}}
