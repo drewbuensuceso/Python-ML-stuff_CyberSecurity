@@ -3,7 +3,7 @@ import logon_times as main
 import pandas as pd
 
 lines: List[str] = []
-for line in open('data/4624.json', 'r'):
+for line in open('data/users.txt', 'r'):
     lines.append(line)
 
 
@@ -70,4 +70,4 @@ def test_check():
     assert(len(anomalies) > 0)
 
 def test_main():
-    main.main(lines, pd.to_timedelta('1h'))
+    main.main(lines, pd.to_timedelta('1d'))
