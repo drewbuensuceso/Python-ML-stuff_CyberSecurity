@@ -4,6 +4,7 @@ Various realtime anomaly detectors
 pip install -r requirements.txt
 ./logon_times.py --help
 ./rare_process_pairs.py --help
+./rare_process_pairs_historical.py --help
 ./rare_users.py --help
 ./rare_process_name.py --help
 ./rare_process_dir.py --help
