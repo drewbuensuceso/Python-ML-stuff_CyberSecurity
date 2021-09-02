@@ -26,7 +26,7 @@ def event(input: Union[str, bytes]) -> Event:
 
 def main(training_input: TextIOWrapper, input: TextIOWrapper) -> None:
 
-    log = structlog.get_logger(detector='suspicious_processes')
+    log = structlog.get_logger(detector='rare_process_pairs')
 
     # Make set of all (process, parent) pairs seen in training data
     seen = set()
@@ -44,7 +44,7 @@ def main(training_input: TextIOWrapper, input: TextIOWrapper) -> None:
         if not seen.__contains__(e):
             timestamp, process, parent = e
             ts = timestamp.to_pydatetime().isoformat()
-            log.info('suspicious process detected', time=ts, process=process, parent=parent)
+            log.info('rare process pair detected', time=ts, process=process, parent=parent)
 
 
 if __name__ == '__main__':

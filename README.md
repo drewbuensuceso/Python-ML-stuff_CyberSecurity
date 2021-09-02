@@ -3,7 +3,7 @@ Various realtime anomaly detectors
 ```sh
 pip install -r requirements.txt
 ./logon_times.py --help
-./suspicious_processes.py --help
+./rare_process_pairs.py --help
 ./rare_users.py --help
 ./rare_process_name.py --help
 ./rare_process_dir.py --help
