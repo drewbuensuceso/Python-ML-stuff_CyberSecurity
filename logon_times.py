@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import json
-from typing import List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 import pandas as pd
 from adtk.data import validate_series
 from adtk.detector import GeneralizedESDTestAD
@@ -17,72 +17,79 @@ Event = Tuple[pd.Timestamp, str]
 
 # Anomaly represents an hour, user pair for which a
 # anomalous number of login events occurred.
-Anomaly = Tuple[pd.Timestamp, str]
+Anomaly = Tuple[pd.Timestamp, str, int]
 
 
 # Parse a JSON encoded line into an Event
-def event(input: Union[str, bytes]) -> Event:
+def event(input: Union[str, bytes]) -> Tuple[Event, Any]:
     e = json.loads(input)
     timestamp = pd.to_datetime(e['_source']['@timestamp'])
     user = e['_source']['user']['target']['name']
-    return (timestamp, user)
+    return ((timestamp, user), e)
 
 
 class Window:
 
     def __init__(self, size: pd.Timedelta) -> None:
-        self.events: List[Event] = []
         self.size: pd.Timedelta = size
         self.latest: Optional[pd.Timestamp] = None
         self.earliest: Optional[pd.Timestamp] = None
+        self.data: Dict[str, pd.Series] = dict()
 
     def add(self, event: Event) -> None:
-        self.events.append(event)
-        timestamp, _ = event
+        timestamp, user = event
         if self.earliest == None or timestamp < self.earliest:
-            self.earliest = timestamp
+            self.earliest = timestamp.floor('H')
         if self.latest == None or timestamp > self.latest:
-            self.latest = timestamp
+            self.latest = timestamp.floor('H')
+        
+        # Increment the count for the current user for the current hour
+        hour = timestamp.floor('H')
+        new_series = pd.Series(data={hour: 1})
+        if user not in self.data:
+            self.data[user] = new_series
+        else:
+            self.data[user] = self.data[user].add(new_series, fill_value=0)
+        
+        # Prune old buckets
+        cutoff: pd.Timestamp = self.latest - self.size
+        cutoff = cutoff.floor('H')
+        self.data[user] = self.data[user][cutoff < self.data[user].index]
 
     def prune(self) -> int:
-        if self.latest == None:
-            return 0
-        length = len(self.events)
-        self.events = list(filter(lambda e: e[0] >= self.latest - self.size, self.events))
-        return length - len(self.events)
-    
+        return 0
+
     def saturated(self) -> bool:
         if self.earliest is None or self.latest is None:
             return False
-        return self.latest - self.earliest >= self.size
-  
-
+        return self.latest - self.earliest > self.size
+    
     def check(self, event: Event) -> List[Anomaly]:
         timestamp, user = event
 
-        # Init dataframe based on window
-        df = pd.DataFrame(self.events, columns=['timestamp', 'user'])
-
-        # Restrict dataframe just to the relevant user
-        df = df[df['user'] == user]
-
-        # Model won't work if it's empty, so return
-        if len(df) < 1:
+        # Get series for user
+        series = self.data.get(user)
+        if series is None:
             return []
 
-        # Bucket events by hour
-        df['timestamp'] = df['timestamp'].dt.round('H')
-
-        # Train model
-        training = validate_series(df.groupby('timestamp').timestamp.count())
+        # Setup model
+        training = validate_series(series)
         esd_ad = GeneralizedESDTestAD()
-        anomalies = esd_ad.fit_detect(training)
+        try:
+            esd_ad.fit(training)
+        except RuntimeError:
+            return []
+
+        # Check if the hour/bucket of our current event is anomalous
+        hour = timestamp.floor('H')
+        check = training[training.index == hour]
+        anomalies = esd_ad.detect(check)
 
         # Reduce to only positive findings
-        anomalies = anomalies[anomalies == True]
+        anomalies = check[anomalies == True]
 
         # Convert to list of anomalies
-        result = list(map(lambda a: (a[0], user), anomalies.items()))
+        result = list(map(lambda a: (a[0], user, a[1]), anomalies.items()))
 
         return result
 
@@ -100,7 +107,7 @@ def main(input: TextIOWrapper, window_size: pd.Timedelta) -> None:
     # the model.
     for line in input:
         count = count + 1
-        e = event(line)
+        e, raw = event(line)
         window.add(e)
 
         # Skip checking the event until the window is saturated.
@@ -115,9 +122,9 @@ def main(input: TextIOWrapper, window_size: pd.Timedelta) -> None:
         results = window.check(e)
 
         for anomaly in results:
-            hour, user = anomaly
+            hour, user, logons = anomaly
             ts = hour.to_pydatetime().isoformat()
-            log.info('anomalous logon for user', user=user, time=ts)
+            log.info('anomalous logon for user', user=user, hour=ts, logons=logons, raw_event=raw)
 
 
 def duration(value: str) -> pd.Timedelta:
