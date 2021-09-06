@@ -6,6 +6,7 @@ pip install -r requirements.txt
 ./rare_process_pairs.py --help
 ./rare_process_pairs_historical.py --help
 ./rare_users.py --help
+./rare_users_historical.py --help
 ./rare_process_name.py --help
 ./rare_process_dir.py --help
 ```
