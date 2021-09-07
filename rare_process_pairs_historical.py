@@ -2,7 +2,7 @@
 
 from io import TextIOWrapper
 import json
-from typing import Any, List, NewType, Tuple, Union
+from typing import Any, Dict, List, NewType, Tuple, Union
 import argparse
 import pandas as pd
 
@@ -23,12 +23,18 @@ def event(input: Union[str, bytes]) -> Event:
     return (timestamp, process_name, parent_name)
     
 
-def main(input: TextIOWrapper) -> str:
+def main(input: TextIOWrapper) -> Dict[str, Any]:
 
     events: List[Event] = []
 
+    count = 0
+    skipped = 0
     for line in input:
-        events.append(event(line))
+        count = count + 1
+        try:
+            events.append(event(line))
+        except:
+            skipped = skipped + 1
     
     df = pd.DataFrame(data=events, columns=['timestamp', 'child', 'parent'])
 
@@ -40,7 +46,8 @@ def main(input: TextIOWrapper) -> str:
     freq = pd.merge(freq, parent_freq, on='parent', how='left')
     freq = freq.sort_values(['pair_freq', 'child_freq', 'parent_freq'])
 
-    return freq.to_json(orient='records', lines=True)
+    result = freq.to_dict(orient='records')
+    return {'meta': {'events': count, 'skipped': skipped}, 'process_pair_rarity': result}
    
 
 
@@ -51,4 +58,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     output = main(args.input)
-    print(output)
+    print(json.dumps(output))
