@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from collections import defaultdict
 from io import TextIOWrapper
 import json
 from typing import Any, Dict, List, NewType, Text, Tuple, Union
@@ -11,12 +12,15 @@ from pandas.core.reshape.merge import merge
 
 Process = NewType('Process', str)
 Parent = NewType('Parent', str)
-UserTargetName = NewType('Parent', str)
-SystemComputer = NewType('Parent', str)
-Tenant = NewType('Parent', str)
+UserTargetName = NewType('UserTargetName', str)
+SystemComputer = NewType('SystemComputer', str)
+Tenant = NewType('Tenant', str)
+ParentDir = NewType('ParentDir', str)
+ParentExe = NewType('ParentExe', str)
+ChildDir = NewType('ChildDir', str)
+ChildExe = NewType('ChildExe', str)
 
-
-Event = Tuple[pd.Timestamp, Process, Parent, UserTargetName, SystemComputer, Tenant]
+Event = Tuple[pd.Timestamp, Process, Parent, UserTargetName, SystemComputer, Tenant, ParentDir, ParentExe, ChildDir, ChildExe]
 
 def lists_to_dict(df):
     df.loc[:, 'user.name'] = df[['user.name']] + df[['username_freq']]
@@ -31,7 +35,13 @@ def event(input: Union[str, bytes]) -> Event:
     user_target_name = e['_source']['user']['target']['name']
     system_computer = e['_source']['data']['win']['system']['computer']
     tenant = e['_source']['tenant']
-    return (timestamp, process_name, parent_name, user_target_name, system_computer, tenant)
+    segments = data['parentProcessName'].split("\\")
+    parent_dir = "\\".join(segments[:-1]).replace("\\\\", "\\")
+    parent_exe = parent_name.split("\\")[-1]
+    segments = data['newProcessName'].split("\\")
+    child_dir = "\\".join(segments[:-1]).replace("\\\\", "\\")
+    child_exe = process_name.split("\\")[-1]
+    return (timestamp, process_name, parent_name, user_target_name, system_computer, tenant, parent_dir, parent_exe, child_dir, child_exe)
 
 def get_whitelisted(input: TextIOWrapper, pwl: TextIOWrapper, cwl: TextIOWrapper) -> Dict[str, Any]:
     events: List[Event] = []
@@ -109,8 +119,7 @@ def main(input: TextIOWrapper, pwl: TextIOWrapper, cwl: TextIOWrapper) -> Dict[s
     else:
         count, skipped, events = get_all_events(input)
 
-    df = pd.DataFrame(data=events, columns=['timestamp', 'child', 'parent', 'user.name', 'system.computer', 'tenant'])
-    
+    df = pd.DataFrame(data=events, columns=['timestamp', 'child', 'parent', 'user.name', 'system.computer', 'tenant', 'parent.dir', 'parent.exe', 'child.dir', 'child.exe'])
     grouped = df.groupby(['parent', 'child'])
     '''user.name processing'''
     username_distinct_freq = df.groupby(['parent', 'child'])['user.name'].nunique().reset_index(name="uniq_usernames")[['parent', 'child', 'uniq_usernames']]
@@ -149,6 +158,7 @@ def main(input: TextIOWrapper, pwl: TextIOWrapper, cwl: TextIOWrapper) -> Dict[s
     freq = pd.merge(freq, usernames, on=['parent', 'child'], how='left')
     freq = pd.merge(freq, systems, on=['parent', 'child'], how='left')
     freq = pd.merge(freq, tenants, on=['parent', 'child'], how='left')
+    freq = pd.merge(freq, df[['parent','child','parent.dir', 'parent.exe', 'child.dir', 'child.exe']], on=['parent', 'child'], how='left')
     freq = freq.sort_values(['pair_freq', 'child_freq', 'parent_freq'])
     
     result = freq.to_dict(orient='records')
@@ -166,4 +176,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     output = main(args.input, args.pwl, args.cwl)
-    print(json.dumps(output))#.replace('\\\\', '\\') --removes extra slash however would invoke a json error
+    print(json.dumps(output))#.replace('\\\\', '\\') --removes extra slash however would invoke a json 
