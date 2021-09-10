@@ -95,7 +95,7 @@ def get_whitelisted_cw(input: TextIOWrapper, cwl: TextIOWrapper) -> Dict[str, An
                 skipped = skipped + 1
     return(count, skipped, events)
 
-def get_all_events(input: TextIOWrapper):
+def get_all_events(input: TextIOWrapper) -> Dict[str, Any]:
     events: List[Event] = []
 
     count = 0
